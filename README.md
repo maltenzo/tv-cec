@@ -1,6 +1,6 @@
 # Tele por HDMI-CEC desde una Raspberry Pi
 
-Pi 3B+/4/5, Raspberry Pi OS Lite (Bookworm), usuario `pi`. **Nada probado en hardware real todavía.**
+Pi 3B+/4/5, Raspberry Pi OS Lite (Bookworm), usuario normal (`pi` u otro: se detecta el uid 1000). **Nada probado en hardware real todavía.**
 
 ## Instalación y auto deploy
 
