@@ -1,0 +1,61 @@
+#!/usr/bin/env python3
+"""tv on|off|status|selftest — HDMI-CEC con cec-ctl. TV_DEBUG=1 muestra la salida cruda."""
+import fcntl, os, re, subprocess, sys, time
+
+DEV = os.environ.get("CEC_DEV", "/dev/cec0")
+DEBUG = os.environ.get("TV_DEBUG")
+
+
+def cec(*args):
+    cmd = ["cec-ctl", "-d", DEV, "--playback", *args]  # --playback es idempotente
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
+    out = r.stdout + r.stderr
+    if DEBUG:
+        print(f"$ {' '.join(cmd)}\n{out}", file=sys.stderr)
+    return out
+
+
+def parse_phys(out):
+    m = re.search(r"Physical Address\s*:\s*([0-9a-f]\.[0-9a-f]\.[0-9a-f]\.[0-9a-f])", out, re.I)
+    return m.group(1) if m else None
+
+
+def parse_power(out):
+    m = re.search(r"pwr-state:\s*([a-z-]+)", out, re.I)
+    # sin respuesta (timeout / not acknowledged) no hay pwr-state -> unknown
+    return {"on": "on", "to-on": "on", "standby": "standby", "to-standby": "standby"}.get(
+        m.group(1).lower() if m else "", "unknown")
+
+
+def selftest():
+    # muestras escritas de memoria: contrastar con TV_DEBUG=1 en la Pi real
+    assert parse_phys("\tPhysical Address : 1.0.0.0\n") == "1.0.0.0"
+    assert parse_phys("nada") is None
+    assert parse_power("\t\tpwr-state: on (0x00)") == "on"
+    assert parse_power("pwr-state: standby (0x01)") == "standby"
+    assert parse_power("pwr-state: to-on (0x02)") == "on"
+    assert parse_power("Tx, Not Acknowledged (NACK)") == "unknown"
+    print("ok")
+
+
+def main(cmd):
+    if cmd == "selftest":
+        return selftest()
+    if cmd not in ("on", "off", "status"):
+        sys.exit("uso: tv on|off|status")
+    with open(DEV) as lock:  # un solo cec-ctl a la vez (API, watcher, cron)
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        if cmd == "status":
+            print(parse_power(cec("--to", "0", "--give-device-power-status")))
+        elif cmd == "off":
+            cec("--to", "0", "--standby")
+        else:
+            phys = os.environ.get("TV_PHYS") or parse_phys(cec())
+            if not phys or phys in ("f.f.f.f", "0.0.0.0"):
+                sys.exit(f"physical address invalido ({phys}); probar TV_DEBUG=1 o TV_PHYS=1.0.0.0")
+            cec("--to", "0", "--image-view-on")
+            time.sleep(2)
+            cec("--active-source", f"phys-addr={phys}")
+
+
+main(sys.argv[1] if len(sys.argv) > 1 else "")

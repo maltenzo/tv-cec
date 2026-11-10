@@ -1,0 +1,12 @@
+[Unit]
+Description=Video en loop (mpv/DRM)
+
+[Service]
+User=pi
+SupplementaryGroups=video render audio
+ExecStart=/usr/bin/mpv --vo=drm --drm-connector=HDMI-A-1 --hwdec=auto --loop=inf --no-terminal --really-quiet /home/pi/video.mp4
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

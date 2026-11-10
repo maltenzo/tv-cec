@@ -1,0 +1,9 @@
+#!/bin/bash
+# Si la tele pasa de standby a on, reinicia el video. "unknown" no cambia el estado previo.
+prev=unknown
+while true; do
+  s=$(tv status 2>/dev/null) || s=unknown
+  [ "$s" = on ] && [ "$prev" = standby ] && systemctl restart tv-video
+  [ "$s" != unknown ] && prev=$s
+  sleep 5
+done

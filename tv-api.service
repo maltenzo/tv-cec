@@ -1,0 +1,13 @@
+[Unit]
+Description=API HTTP para controlar la tele
+After=network-online.target
+
+[Service]
+User=pi
+SupplementaryGroups=video
+Environment=TV_API_TOKEN_FILE=/etc/tv-api.token
+ExecStart=/usr/bin/python3 /usr/local/bin/tv-api.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

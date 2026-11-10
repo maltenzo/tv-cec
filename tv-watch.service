@@ -1,0 +1,10 @@
+[Unit]
+Description=Reinicia el video cuando la tele se prende
+
+[Service]
+# root: necesita reiniciar tv-video y acceder a /dev/cec0
+ExecStart=/usr/local/bin/tv-watch
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

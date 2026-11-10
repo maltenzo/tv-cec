@@ -1,0 +1,7 @@
+[Unit]
+Description=Deploy: git pull + install si hay cambios
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/tv/deploy.sh
