@@ -1,11 +1,4 @@
 #!/bin/bash
-# tv-console [on|off]: sin argumento alterna video/consola. off = para el video y apaga la señal HDMI
-# (para teles sin CEC). Dura hasta el próximo reboot (no hace disable).
-blank() { sudo -n sh -c "TERM=linux setterm --blank $1 </dev/tty1 >/dev/tty1"; }
-case "$1" in
-  off) sudo -n systemctl stop tv-video; blank force; echo off ;;
-  on) blank poke; sudo -n systemctl start tv-video; echo video ;;
-  "") if systemctl is-active --quiet tv-video; then sudo -n systemctl stop tv-video; blank poke; echo consola
-      else sudo -n systemctl start tv-video; echo video; fi ;;
-  *) echo "uso: tv-console [on|off]" >&2; exit 1 ;;
-esac
+# Alterna entre el video y la consola. Dura hasta el próximo reboot (no hace disable).
+if systemctl is-active --quiet tv-video; then sudo -n systemctl stop tv-video; echo consola
+else sudo -n systemctl start tv-video; echo video; fi

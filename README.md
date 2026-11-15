@@ -55,7 +55,3 @@ Sin TLS ni puertos abiertos: acceder desde afuera con Tailscale (`http://<nombre
 ## Web
 
 `http://<ip-pi>:8080/` → botones prender/apagar/video-consola/estado. Pide el token una vez (`sudo cat /etc/tv-api.token`) y lo guarda en el navegador. Sigue sin TLS: usar solo en LAN/Tailscale.
-
-## Teles sin CEC
-
-Si la tele no obedece CEC (no hay opción en su menú), `tv-console off` para el video y apaga la señal HDMI (la tele pasa a "sin señal"); `tv-console on` lo revierte. La API (`/on`, `/off`) lo llama además de CEC, y `tv status` queda en `unknown`.
