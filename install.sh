@@ -5,7 +5,7 @@ cd "$(dirname "$0")"
 U=$(id -nu 1000)  # usuario normal: "pi" en la imagen estándar; las units se renderizan con el real
 
 command -v cec-ctl >/dev/null && command -v mpv >/dev/null || apt-get install -y v4l-utils mpv python3
-install -m755 tv tv-watch tv-api.py /usr/local/bin/
+install -m755 tv tv-watch tv-console tv-api.py /usr/local/bin/
 [ -f /etc/tv-api.token ] || { openssl rand -hex 16 > /etc/tv-api.token; chown "$U" /etc/tv-api.token; chmod 600 /etc/tv-api.token; }
 grep -q 'video=HDMI-A-1' /boot/firmware/cmdline.txt || sed -i '1s|$| video=HDMI-A-1:1920x1080@60D|' /boot/firmware/cmdline.txt
 usermod -aG video,render,audio "$U"

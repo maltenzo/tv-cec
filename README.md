@@ -47,3 +47,11 @@ Sin TLS ni puertos abiertos: acceder desde afuera con Tailscale (`http://<nombre
 0 8  * * * /usr/local/bin/tv on
 0 22 * * * /usr/local/bin/tv off
 ```
+
+## Consola vs video
+
+`tv-console` alterna: para `tv-video` (se ve la consola) o lo arranca. No persiste al reiniciar. Si el video tapa todo: SSH a la Pi y correrlo (o a ciegas en el teclado: login + `tv-console`).
+
+## Web
+
+`http://<ip-pi>:8080/` → botones prender/apagar/video-consola/estado. Pide el token una vez (`sudo cat /etc/tv-api.token`) y lo guarda en el navegador. Sigue sin TLS: usar solo en LAN/Tailscale.

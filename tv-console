@@ -1,0 +1,4 @@
+#!/bin/bash
+# Alterna entre el video y la consola. Dura hasta el próximo reboot (no hace disable).
+if systemctl is-active --quiet tv-video; then sudo -n systemctl stop tv-video; echo consola
+else sudo -n systemctl start tv-video; echo video; fi
