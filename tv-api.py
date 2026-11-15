@@ -32,6 +32,8 @@ class H(BaseHTTPRequestHandler):
         if cmd not in ("on", "off", "status", "console"):
             return self.send(404, "not found")
         try:
+            if cmd in ("on", "off"):  # ponytail: teles sin CEC ignoran tv on/off; igual pasamos el video/señal
+                subprocess.run(["/usr/local/bin/tv-console", cmd], timeout=15)
             r = subprocess.run((["/usr/local/bin/tv-console"] if cmd == "console" else ["/usr/local/bin/tv", cmd]), capture_output=True, text=True, timeout=40)
             self.send(200 if r.returncode == 0 else 500, (r.stdout + r.stderr).strip() or "ok")
         except subprocess.TimeoutExpired:
