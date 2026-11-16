@@ -13,3 +13,8 @@
 - El estado de la tele es el último reportado (≤ 15 s de atraso); `to-on` / `to-standby` se muestran como "sin datos".
 - Latencia de hasta 15 s por el polleo. Para respuesta inmediata haría falta una conexión persistente (SSE/websocket) desde la Pi.
 - Limpieza de `.tmp` huérfanos si el servidor muere en medio de una subida.
+
+## Costo (tope: los $5 de Hobby)
+- Pausa de 10 min en `tv-sync` tras un fallo de descarga (`~/download.retry`): evita que un archivo roto se baje entero cada 15 s.
+- Pendiente del lado del usuario: poner un límite de uso en el panel de Railway (Workspace → Usage → hard limit) como red de seguridad.
+- Si el contenido pasa de ~4 GB o las subidas grandes fallan, evaluar R2 (ver conversación: URLs firmadas, bucket propio).

@@ -8,7 +8,7 @@ if not os.path.exists(CONF):
     sys.exit(0)  # todavía sin configurar: nada que hacer (y sin ruido en el journal)
 conf = dict(l.strip().split("=", 1) for l in open(CONF) if "=" in l)
 URL, DIR = conf["URL"], pathlib.Path(conf.get("DIR") or pathlib.Path.home())
-MEDIA, M3U, CACHE, LAST, CMD = DIR / "media", DIR / "playlist.m3u", DIR / "schedule.json", DIR / "schedule.last", DIR / "command.last"
+MEDIA, M3U, CACHE, LAST, CMD, RETRY = DIR / "media", DIR / "playlist.m3u", DIR / "schedule.json", DIR / "schedule.last", DIR / "command.last", DIR / "download.retry"
 
 
 def api(path):
@@ -40,15 +40,23 @@ def sync():
     for sha in state["playlist"]:
         f = MEDIA / state["media"][sha]["file"]
         if not f.exists():
+            # Tras un fallo de descarga, esperar 10 min: sin esto un archivo roto se baja entero cada 15 s (egress = plata en Railway).
+            if RETRY.exists() and time.time() < float(RETRY.read_text()):
+                return
             tmp, h = f.with_suffix(f.suffix + ".tmp"), hashlib.sha256()
-            with api("/media/" + sha) as r, open(tmp, "wb") as o:
-                while chunk := r.read(1 << 20):
-                    h.update(chunk); o.write(chunk)
-            if h.hexdigest() != sha:
-                tmp.unlink()
-                raise SystemExit(f"sha incorrecto para {sha}")
+            try:
+                with api("/media/" + sha) as r, open(tmp, "wb") as o:
+                    while chunk := r.read(1 << 20):
+                        h.update(chunk); o.write(chunk)
+                if h.hexdigest() != sha:
+                    raise RuntimeError(f"sha incorrecto para {sha}")
+            except Exception:
+                RETRY.write_text(str(time.time() + 600))
+                tmp.unlink(missing_ok=True)
+                raise
             tmp.rename(f)
         files.append(f)
+    RETRY.unlink(missing_ok=True)  # todo bajado
     for old in MEDIA.iterdir():
         if old not in files:
             old.unlink()

@@ -115,12 +115,20 @@ class T(unittest.TestCase):
         self.assertEqual(sorted(p.name for p in (pi / "media").iterdir()), [f"{b}.jpg"])
         self.assertIn("try-restart tv-video", self.log("systemctl")[-1])
 
-    def test_sync_rechaza_archivo_corrupto(self):
+    def test_sync_rechaza_archivo_corrupto_y_espera_antes_de_reintentar(self):
         sha = self.upload("a.mp4", b"video")
         call("PUT", "/state", {"playlist": [sha]})
-        (self.d / "data" / "media" / f"{sha}.mp4").write_bytes(b"corrupto")
+        f = self.d / "data" / "media" / f"{sha}.mp4"
+        f.write_bytes(b"corrupto")
         self.assertNotEqual(self.sync(), 0)
         self.assertFalse((self.d / "pi" / "playlist.m3u").exists())  # no se publica nada a medias
+        f.write_bytes(b"video")  # el servidor ya está arreglado...
+        self.assertEqual(self.sync(), 0)
+        self.assertFalse((self.d / "pi" / "playlist.m3u").exists())  # ...pero hay que esperar: no se vuelve a bajar enseguida
+        (self.d / "pi" / "download.retry").unlink()  # pasan los 10 min
+        self.assertEqual(self.sync(), 0)
+        self.assertTrue((self.d / "pi" / "playlist.m3u").exists())
+        self.assertFalse((self.d / "pi" / "download.retry").exists())
 
     def test_sin_conf_no_hace_ruido(self):
         (self.d / "tv-sync.conf").unlink()
