@@ -2,6 +2,8 @@
 
 **Depende de:** 01 (independiente de 02/03; se puede hacer antes).
 
+**Estado:** hecho en código y tests; falta probar en la Pi.
+
 ## Objetivo
 Definir desde la API a qué hora se prende y se apaga la tele.
 
@@ -18,3 +20,10 @@ Con horario 08-22, la tele se apaga a las 22:00 y prende a las 08:00 sin interve
 
 ## A decidir
 Horarios distintos por día; zona horaria en la Pi vs. en el servidor (lo más simple: la Pi usa su hora local y el servidor solo guarda strings).
+
+## Hecho (como quedó)
+`schedule: {"on","off"}` en `/state` (validado, `on != off`, puede cruzar medianoche). `tv-sync` lo guarda en caché local y lo evalúa cada minuto aunque no haya red; actúa solo cuando el estado deseado cambia (o en el primer arranque), así un `tv on/off` manual dura hasta el próximo cambio; si `tv` falla reintenta al minuto. Usa la hora local de la Pi.
+
+## Pendiente
+- Probar en la Pi con CEC real.
+- Días de la semana (no hecho; agregar `days` si hace falta).

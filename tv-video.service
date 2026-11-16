@@ -4,7 +4,7 @@ Description=Video en loop (mpv/DRM)
 [Service]
 User=pi
 SupplementaryGroups=video render audio
-ExecStart=/usr/bin/mpv --vo=gpu --gpu-context=drm --drm-connector=HDMI-A-1 --hwdec=auto --loop=inf --no-terminal --really-quiet /home/pi/video.mp4
+ExecStart=/usr/bin/mpv --vo=gpu --gpu-context=drm --drm-connector=HDMI-A-1 --hwdec=auto --loop-playlist=inf --image-display-duration=10 --no-terminal --really-quiet --playlist=/home/pi/playlist.m3u
 Restart=always
 RestartSec=3
 

@@ -5,5 +5,4 @@ After=network-online.target
 [Service]
 Type=oneshot
 User=pi
-Environment=HOME=/home/pi
 ExecStart=/usr/local/bin/tv-sync

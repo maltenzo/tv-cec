@@ -1,11 +1,62 @@
-#!/bin/bash
-# Baja el video de la API si cambió (sha distinto). Config en /etc/tv-sync.conf: URL=https://... TOKEN=...
-. "${TV_SYNC_CONF:-/etc/tv-sync.conf}"
-V=${VIDEO:-$HOME/video.mp4}
-auth=(-H "Authorization: Bearer $TOKEN")
-new=$(curl -fsS "${auth[@]}" "$URL/video/sha") || exit 0   # sin red o sin video todavía: nada que hacer
-[ "$new" = "$(cat "$V.sha" 2>/dev/null)" ] && exit 0
-curl -fsS "${auth[@]}" -o "$V.tmp" "$URL/video" || { rm -f "$V.tmp"; exit 1; }
-[ "$(sha256sum "$V.tmp" | cut -d' ' -f1)" = "$new" ] || { rm -f "$V.tmp"; exit 1; }
-mv "$V.tmp" "$V" && echo "$new" > "$V.sha"
-systemctl try-restart tv-video
+#!/usr/bin/env python3
+"""Corre cada minuto en la Pi: sincroniza con la API (baja lo que falta, playlist.m3u) y aplica el horario.
+Config en /etc/tv-sync.conf (o $TV_SYNC_CONF): líneas URL=... y TOKEN=...; opcional DIR=... (default: $HOME)."""
+import datetime, hashlib, json, os, pathlib, subprocess, sys, urllib.request
+
+conf = dict(l.strip().split("=", 1) for l in open(os.environ.get("TV_SYNC_CONF", "/etc/tv-sync.conf")) if "=" in l)
+URL, DIR = conf["URL"], pathlib.Path(conf.get("DIR") or pathlib.Path.home())
+MEDIA, M3U, CACHE, LAST = DIR / "media", DIR / "playlist.m3u", DIR / "schedule.json", DIR / "schedule.last"
+
+
+def api(path):
+    return urllib.request.urlopen(urllib.request.Request(URL + path, headers={"Authorization": "Bearer " + conf["TOKEN"]}), timeout=60)
+
+
+def sync():
+    try:
+        state = json.load(api("/state"))
+    except OSError:
+        return  # sin red: seguimos con lo que hay
+    if state.get("schedule"):  # primero el horario, así anda aunque falle una descarga
+        CACHE.write_text(json.dumps(state["schedule"]))
+    else:
+        CACHE.unlink(missing_ok=True)
+    MEDIA.mkdir(exist_ok=True)
+    files = []
+    for sha in state["playlist"]:
+        f = MEDIA / state["media"][sha]["file"]
+        if not f.exists():
+            tmp, h = f.with_suffix(f.suffix + ".tmp"), hashlib.sha256()
+            with api("/media/" + sha) as r, open(tmp, "wb") as o:
+                while chunk := r.read(1 << 20):
+                    h.update(chunk); o.write(chunk)
+            if h.hexdigest() != sha:
+                tmp.unlink()
+                raise SystemExit(f"sha incorrecto para {sha}")
+            tmp.rename(f)
+        files.append(f)
+    for old in MEDIA.iterdir():
+        if old not in files:
+            old.unlink()
+    m3u = "".join(f"{f}\n" for f in files)
+    if not M3U.exists() or M3U.read_text() != m3u:
+        M3U.with_suffix(".tmp").write_text(m3u)
+        M3U.with_suffix(".tmp").replace(M3U)
+        subprocess.run(["systemctl", "try-restart", "tv-video"])
+
+
+def schedule():
+    """Actúa solo en los cambios (así un `tv on/off` manual dura hasta el próximo cambio). Usa la hora local de la Pi."""
+    if not CACHE.exists():
+        return LAST.unlink(missing_ok=True)
+    s, now = json.loads(CACHE.read_text()), os.environ.get("TV_NOW") or datetime.datetime.now().strftime("%H:%M")
+    on = s["on"] <= now < s["off"] if s["on"] < s["off"] else now >= s["on"] or now < s["off"]
+    want = "on" if on else "off"
+    if (LAST.read_text() if LAST.exists() else None) != want and subprocess.run(["tv", want]).returncode == 0:
+        LAST.write_text(want)  # si tv falla (CEC no listo) no se anota y reintenta al minuto
+
+
+try:
+    sync()
+finally:
+    schedule()

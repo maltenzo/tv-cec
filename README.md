@@ -41,7 +41,7 @@ curl -H "Authorization: Bearer $TOKEN" http://<ip-pi>:8080/status   # /on /off /
 
 Sin TLS ni puertos abiertos: acceder desde afuera con Tailscale (`http://<nombre-tailscale>:8080`).
 
-## Cron (opcional, `crontab -e` del usuario `pi`)
+## Cron (opcional; alternativa al horario de la API)
 
 ```cron
 0 8  * * * /usr/local/bin/tv on
@@ -56,18 +56,29 @@ Sin TLS ni puertos abiertos: acceder desde afuera con Tailscale (`http://<nombre
 
 `http://<ip-pi>:8080/` → botones prender/apagar/video-consola/estado. Pide el token una vez (`sudo cat /etc/tv-api.token`) y lo guarda en el navegador. Sigue sin TLS: usar solo en LAN/Tailscale.
 
-## API en Railway (fase 1: reemplazar el video)
+## API en Railway
 
-`server/` es un servicio aparte (Railway → Root Directory `server`, variable `API_TOKEN`, volumen montado en `/data`). La Pi *consulta* la API cada minuto (`tv-sync.timer`), así que sigue sin puertos abiertos.
+`server/` es un servicio aparte (Railway → Root Directory `server`, variable `API_TOKEN`, volumen en `/data`). La Pi *consulta* la API cada minuto (`tv-sync.timer`): sin puertos abiertos. Todo con `Authorization: Bearer $API_TOKEN`.
 
 ```bash
-# subir/reemplazar el video
-curl -H "Authorization: Bearer $API_TOKEN" -T nuevo.mp4 https://<app>.up.railway.app/video
+H="Authorization: Bearer $API_TOKEN"
+# subir (video o imagen; devuelve el sha)
+curl -H "$H" -T clip.mp4 "$URL/media?name=clip.mp4" -X POST
+# playlist (orden = orden de reproducción, en loop) y horario; cada clave es opcional
+curl -H "$H" -X PUT "$URL/state" -d '{"playlist":["<sha1>","<sha2>"],"schedule":{"on":"08:00","off":"22:00"}}'
+curl -H "$H" "$URL/state"                    # media subida + playlist + horario
+curl -H "$H" -X DELETE "$URL/media/<sha>"    # borra y saca de la playlist
+curl -H "$H" -X PUT "$URL/state" -d '{"schedule":null}'   # sin horario
+```
 
-# en la Pi, una vez (el próximo sync baja el video y reinicia tv-video)
+Horario: `tv-sync` usa la hora local de la Pi (`timedatectl set-timezone America/Argentina/Buenos_Aires`) y actúa solo al cambiar de estado, así un `tv on/off` manual dura hasta el próximo cambio. Imágenes: 10 s cada una (`--image-display-duration` en `tv-video.service`).
+
+En la Pi, una vez:
+
+```bash
 printf 'URL=https://<app>.up.railway.app\nTOKEN=<API_TOKEN>\n' | sudo tee /etc/tv-sync.conf; sudo chmod 600 /etc/tv-sync.conf
 ```
 
 ## Tests
 
-`python3 -m unittest discover tests` — levanta `server/main.py` en local y corre `tv-sync` contra él (con `systemctl` falso); no necesita la Pi.
+`python3 -m unittest discover tests` — levanta `server/main.py` en local y corre `tv-sync` contra él (con `systemctl` y `tv` falsos); no necesita la Pi.

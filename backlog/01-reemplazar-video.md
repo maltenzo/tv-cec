@@ -21,3 +21,6 @@ Subo un mp4 con curl y en ≤ 1-2 min la tele muestra el nuevo.
 
 ## Límites conocidos
 Un solo video; un upload a la vez; límites de tamaño/tiempo de request de Railway sin medir.
+
+## Nota
+Reemplazado por el modelo de media + playlist (02): ya no existe `PUT /video`; reemplazar el video = subir el nuevo con `POST /media` y poner su sha como única entrada de la playlist.

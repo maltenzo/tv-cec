@@ -2,6 +2,8 @@
 
 **Depende de:** 02.
 
+**Estado:** hecho en código y tests; falta probar en la Pi.
+
 ## Objetivo
 Poder mezclar imágenes con videos en la lista.
 
@@ -16,3 +18,9 @@ Una lista video → imagen (10 s) → video se reproduce en loop sin cortes ni p
 
 ## Riesgos
 Transiciones entre ítems en `mpv`/DRM; redimensionado de imágenes grandes (puede requerir pre-escalar en el servidor).
+
+## Hecho (como quedó)
+Las imágenes (`jpg jpeg png gif webp bmp`) se suben igual que los videos y entran en la misma playlist. **Duración fija de 10 s** (`--image-display-duration=10` en `tv-video.service`): la duración por ítem no se hizo porque el `.m3u` de mpv no la soporta de forma simple y no se puede probar sin la Pi. Si hace falta, probar `edl://` con `length=`.
+
+## Pendiente
+Probar en la Pi: imágenes con `vo=gpu` (DRM), transiciones, imágenes grandes (¿pre-escalar en el servidor?).

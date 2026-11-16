@@ -2,6 +2,8 @@
 
 **Depende de:** 01.
 
+**Estado:** hecho en código y tests; falta probar en la Pi.
+
 ## Objetivo
 Armar y manejar una lista ordenada de videos que se reproduce en loop.
 
@@ -17,3 +19,11 @@ Subo 3 videos, defino su orden por API, la tele los reproduce en secuencia y en 
 
 ## A decidir
 Si hace falta nombre/etiqueta por archivo además del sha (probablemente sí para una futura UI).
+
+## Hecho (como quedó)
+`POST /media?name=`, `GET /media/<sha>`, `DELETE /media/<sha>`, `GET/PUT /state`; `tv-sync` (ahora Python) baja lo que falta, verifica sha256, borra lo que sobra, escribe `playlist.m3u` y reinicia `tv-video` solo si cambió; `tv-video.service` usa `--playlist` con `--loop-playlist=inf`. Playlist = lista de sha (un sha puede repetirse).
+
+## Pendiente
+- Probar en la Pi: mpv con playlist, cambio de orden en caliente.
+- Una playlist vacía deja a mpv reintentando cada 3 s (inofensivo, pero no muestra nada).
+- Nombres/etiquetas ya se guardan (`name`); falta una UI para verlos.
