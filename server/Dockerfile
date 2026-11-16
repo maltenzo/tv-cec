@@ -1,3 +1,3 @@
 FROM python:3.12-slim
-COPY main.py /main.py
+COPY main.py index.html /
 CMD ["python", "/main.py"]

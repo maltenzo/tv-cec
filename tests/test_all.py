@@ -58,6 +58,11 @@ class T(unittest.TestCase):
     def upload(self, name, data):
         return call("POST", f"/media?name={name}", data)["sha"]
 
+    def test_ui_publica(self):
+        r = urllib.request.urlopen(URL + "/")  # sin token
+        self.assertIn(b"<title>Tele</title>", r.read())
+        self.assertIn("text/html", r.headers["Content-Type"])
+
     def test_auth(self):
         for m, p in (("GET", "/state"), ("POST", "/media?name=a.mp4"), ("PUT", "/state"), ("DELETE", "/media/" + "0" * 64)):
             self.assertEqual(call(m, p, b"x", token="mal"), 401, (m, p))

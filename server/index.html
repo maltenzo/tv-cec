@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tele</title>
+<style>
+  :root { color-scheme: light dark; --line: #8884; --accent: #2563eb; }
+  body { font: 16px/1.4 system-ui, sans-serif; max-width: 42rem; margin: 0 auto; padding: 1rem; }
+  h1 { margin: 0 0 .5rem; } h2 { margin: 1.8rem 0 .5rem; font-size: 1.1rem; }
+  ul { list-style: none; margin: 0; padding: 0; }
+  li { display: flex; gap: .5rem; align-items: center; padding: .5rem 0; border-bottom: 1px solid var(--line); }
+  li > span { flex: 1; overflow-wrap: anywhere; } small { opacity: .6; }
+  button { font: inherit; padding: .35rem .7rem; border: 1px solid var(--line); border-radius: .4rem; background: none; color: inherit; cursor: pointer; }
+  button.main { background: var(--accent); border-color: var(--accent); color: #fff; }
+  input[type=time] { font: inherit; }
+  #msg { position: sticky; top: 0; padding: .4rem; background: Canvas; min-height: 1.4em; }
+  .err { color: #dc2626; } .empty { opacity: .6; padding: .5rem 0; }
+</style>
+<h1>Tele</h1>
+<div id="msg"></div>
+
+<h2>Playlist <small>(se repite en loop)</small></h2>
+<ul id="playlist"></ul>
+
+<h2>Biblioteca</h2>
+<input id="file" type="file" accept="video/*,image/*" multiple>
+<ul id="library"></ul>
+
+<h2>Horario</h2>
+<label><input id="sched-on" type="checkbox"> Prender y apagar solo</label><br>
+<p>Prende <input id="on" type="time" value="08:00"> apaga <input id="off" type="time" value="22:00">
+<button class="main" id="save-sched">Guardar</button></p>
+<small>Hora local de la Pi.</small>
+
+<script>
+const $ = id => document.getElementById(id);
+const h = (tag, props, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids); return e; };
+let token = localStorage.token, state = { media: {}, playlist: [], schedule: null };
+
+function say(text, err) { $('msg').textContent = text || ''; $('msg').className = err ? 'err' : ''; }
+
+async function api(method, path, body) {
+  const r = await fetch(path, { method, headers: { Authorization: 'Bearer ' + token }, body: body && JSON.stringify(body) });
+  if (r.status === 401) { localStorage.removeItem('token'); token = null; ask(); throw Error('token incorrecto'); }
+  if (!r.ok) throw Error(await r.text());
+  return r.json();
+}
+
+function ask() {
+  token = prompt('Token de la API');
+  if (token) localStorage.token = token;
+}
+
+async function run(fn) {  // muestra errores en vez de perderlos en la consola
+  try { say(''); await fn(); } catch (e) { say(e.message, true); }
+}
+
+function render() {
+  const name = sha => state.media[sha]?.name ?? sha.slice(0, 8);
+  const pl = $('playlist'); pl.replaceChildren();
+  state.playlist.forEach((sha, i) => pl.append(h('li', {},
+    h('span', { textContent: `${i + 1}. ${name(sha)}` }),
+    h('button', { textContent: '↑', disabled: !i, onclick: () => move(i, -1) }),
+    h('button', { textContent: '↓', disabled: i == state.playlist.length - 1, onclick: () => move(i, 1) }),
+    h('button', { textContent: '✕', onclick: () => savePlaylist(state.playlist.filter((_, j) => j != i)) }))));
+  if (!state.playlist.length) pl.append(h('li', { className: 'empty', textContent: 'Vacía: agregá algo de la biblioteca.' }));
+
+  const lib = $('library'); lib.replaceChildren();
+  for (const [sha, m] of Object.entries(state.media)) lib.append(h('li', {},
+    h('span', { textContent: m.name }), h('small', { textContent: m.kind }),
+    h('button', { textContent: '+ playlist', onclick: () => savePlaylist([...state.playlist, sha]) }),
+    h('button', { textContent: 'Borrar', onclick: () => confirm(`¿Borrar ${m.name}?`) && run(async () => { state = await api('DELETE', '/media/' + sha); render(); }) })));
+  if (!Object.keys(state.media).length) lib.append(h('li', { className: 'empty', textContent: 'Nada subido todavía.' }));
+
+  $('sched-on').checked = !!state.schedule;
+  if (state.schedule) { $('on').value = state.schedule.on; $('off').value = state.schedule.off; }
+}
+
+const savePlaylist = playlist => run(async () => { state = await api('PUT', '/state', { playlist }); render(); });
+const move = (i, d) => { const p = [...state.playlist]; [p[i], p[i + d]] = [p[i + d], p[i]]; savePlaylist(p); };
+
+$('save-sched').onclick = () => run(async () => {
+  const schedule = $('sched-on').checked ? { on: $('on').value, off: $('off').value } : null;
+  state = await api('PUT', '/state', { schedule }); render(); say('Horario guardado');
+});
+
+function upload(file) {  // XHR y no fetch: da progreso
+  return new Promise((ok, fail) => {
+    const x = new XMLHttpRequest();
+    x.open('POST', '/media?name=' + encodeURIComponent(file.name));
+    x.setRequestHeader('Authorization', 'Bearer ' + token);
+    x.upload.onprogress = e => say(`Subiendo ${file.name}: ${Math.round(100 * e.loaded / e.total)}%`);
+    x.onload = () => x.status < 300 ? ok() : fail(Error(`${file.name}: ${x.responseText}`));
+    x.onerror = () => fail(Error(`${file.name}: error de red`));
+    x.send(file);
+  });
+}
+
+$('file').onchange = e => run(async () => {
+  for (const f of e.target.files) await upload(f);
+  e.target.value = '';
+  state = await api('GET', '/state'); render(); say('Subido');
+});
+
+if (!token) ask();
+run(async () => { state = await api('GET', '/state'); render(); });
+</script>

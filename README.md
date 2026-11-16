@@ -58,6 +58,8 @@ Sin TLS ni puertos abiertos: acceder desde afuera con Tailscale (`http://<nombre
 
 ## API en Railway
 
+**UI web:** abrir `https://<app>.up.railway.app/` (pide el `API_TOKEN` una vez y lo guarda en el navegador): subir archivos, armar/ordenar la playlist y editar el horario. Lo de abajo es lo mismo por curl.
+
 `server/` es un servicio aparte (Railway → Root Directory `server`, variable `API_TOKEN`, volumen en `/data`). La Pi *consulta* la API cada minuto (`tv-sync.timer`): sin puertos abiertos. Todo con `Authorization: Bearer $API_TOKEN`.
 
 ```bash

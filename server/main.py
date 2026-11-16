@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """API en Railway. Auth: Authorization: Bearer $API_TOKEN.
 POST /media?name=a.mp4 (cuerpo = el archivo) · GET /media/<sha> · DELETE /media/<sha>
-GET /state · PUT /state {"playlist": [sha, ...], "schedule": {"on": "08:00", "off": "22:00"} | null}"""
+GET / (la UI, sin token) · GET /state · PUT /state {"playlist": [sha, ...], "schedule": {"on": "08:00", "off": "22:00"} | null}"""
 import hashlib, hmac, json, os, re, threading, uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
@@ -13,6 +13,7 @@ VIDEO = {".mp4", ".mkv", ".mov", ".webm", ".avi"}
 IMAGE = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}
 SHA = re.compile(r"[0-9a-f]{64}")
 HHMM = re.compile(r"([01]\d|2[0-3]):[0-5]\d")
+PAGE = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html"), "rb").read()
 LOCK = threading.Lock()  # ponytail: lock global para leer-modificar-escribir state.json; sobra para un solo usuario
 
 
@@ -52,6 +53,8 @@ class H(BaseHTTPRequestHandler):
         return m and m.group(1)
 
     def do_GET(self):
+        if self.path == "/":  # la página es pública y no lleva datos; el token se pide en el navegador
+            return self.send(200, PAGE, "text/html; charset=utf-8")
         if not self.auth():
             return
         if self.path == "/state":

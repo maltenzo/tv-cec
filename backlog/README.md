@@ -18,3 +18,4 @@ Principio: cada fase es usable por sí sola y no rompe la anterior. Simplicidad 
 | 02 | [Listas de videos](02-listas-de-videos.md) | hecho, falta probar en la Pi |
 | 03 | [Imágenes](03-imagenes.md) | hecho, falta probar en la Pi |
 | 04 | [Horarios de prendido/apagado](04-horarios.md) | hecho, falta probar en la Pi |
+| 05 | [UI web](05-ui-web.md) | hecho, falta probar en un navegador real |
