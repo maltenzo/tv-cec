@@ -60,7 +60,7 @@ Sin TLS ni puertos abiertos: acceder desde afuera con Tailscale (`http://<nombre
 
 **UI web:** abrir `https://<app>.up.railway.app/` (pide el `API_TOKEN` una vez y lo guarda en el navegador): subir archivos, armar/ordenar la playlist y editar el horario. Lo de abajo es lo mismo por curl.
 
-`server/` es un servicio aparte (Railway → Root Directory `server`, variable `API_TOKEN`, volumen en `/data`). La Pi *consulta* la API cada minuto (`tv-sync.timer`): sin puertos abiertos. Todo con `Authorization: Bearer $API_TOKEN`.
+`server/` es un servicio aparte (Railway → Root Directory `server`, variable `API_TOKEN`, volumen en `/data`). La Pi *consulta* la API cada minuto (`tv-sync.timer`, cada 15 s): sin puertos abiertos. Todo con `Authorization: Bearer $API_TOKEN`.
 
 ```bash
 H="Authorization: Bearer $API_TOKEN"
@@ -72,6 +72,8 @@ curl -H "$H" "$URL/state"                    # media subida + playlist + horario
 curl -H "$H" -X DELETE "$URL/media/<sha>"    # borra y saca de la playlist
 curl -H "$H" -X PUT "$URL/state" -d '{"schedule":null}'   # sin horario
 ```
+
+Prender/apagar/consola desde la UI (o `curl -H "$H" -X POST $URL/command -d '{"cmd":"on"}'`, también `off` y `console`): `tv-sync` lo ejecuta una sola vez en su próximo ciclo y descarta órdenes de hace más de 5 min.
 
 Horario: `tv-sync` usa la hora local de la Pi (`timedatectl set-timezone America/Argentina/Buenos_Aires`) y actúa solo al cambiar de estado, así un `tv on/off` manual dura hasta el próximo cambio. Imágenes: 10 s cada una (`--image-display-duration` en `tv-video.service`).
 

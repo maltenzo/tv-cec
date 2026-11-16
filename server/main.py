@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """API en Railway. Auth: Authorization: Bearer $API_TOKEN.
 POST /media?name=a.mp4 (cuerpo = el archivo) · GET /media/<sha> · DELETE /media/<sha>
+POST /command {"cmd": "on"|"off"|"console"} (la Pi lo ejecuta en su próximo ciclo)
 GET / (la UI, sin token) · GET /state · PUT /state {"playlist": [sha, ...], "schedule": {"on": "08:00", "off": "22:00"} | null}"""
-import hashlib, hmac, json, os, re, threading, uuid
+import hashlib, hmac, json, os, re, threading, time, uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
@@ -21,7 +22,7 @@ def load():
     try:
         return json.load(open(STATE))
     except FileNotFoundError:
-        return {"media": {}, "playlist": [], "schedule": None}
+        return {"media": {}, "playlist": [], "schedule": None, "command": None}
 
 
 def save(s):
@@ -65,6 +66,8 @@ class H(BaseHTTPRequestHandler):
         if not rec:
             return self.send(404, "not found")
         path = f"{MEDIA}/{rec['file']}"
+        if not os.path.exists(path):
+            return self.send(404, "not found")
         self.send_response(200)
         self.send_header("Content-Length", str(os.path.getsize(path)))
         self.end_headers()
@@ -76,6 +79,8 @@ class H(BaseHTTPRequestHandler):
         if not self.auth():
             return
         u = urlparse(self.path)
+        if u.path == "/command":
+            return self.queue_command()
         if u.path != "/media":
             return self.send(404, "not found")
         name = os.path.basename(parse_qs(u.query).get("name", [""])[0])
@@ -85,13 +90,18 @@ class H(BaseHTTPRequestHandler):
             return self.send(400, "hace falta ?name=archivo.ext (video o imagen conocida) y cuerpo no vacío")
         os.makedirs(MEDIA, exist_ok=True)
         tmp, h = f"{MEDIA}/{uuid.uuid4().hex}.tmp", hashlib.sha256()
-        with open(tmp, "wb") as f:
-            while left > 0:
-                chunk = self.rfile.read(min(1 << 20, left))
-                if not chunk:
-                    os.unlink(tmp)
-                    return self.send(400, "truncated")
-                f.write(chunk); h.update(chunk); left -= len(chunk)
+        try:
+            with open(tmp, "wb") as f:
+                while left > 0:
+                    chunk = self.rfile.read(min(1 << 20, left))
+                    if not chunk:
+                        os.unlink(tmp)
+                        return self.send(400, "truncated")
+                    f.write(chunk); h.update(chunk); left -= len(chunk)
+        except OSError as e:  # disco lleno (el volumen de Hobby es de 5 GB)
+            if os.path.exists(tmp):
+                os.unlink(tmp)
+            return self.send(507, f"no se pudo guardar: {e.strerror}")
         sha = h.hexdigest()
         with LOCK:
             s = load()
@@ -102,6 +112,18 @@ class H(BaseHTTPRequestHandler):
                 s["media"][sha] = {"name": name, "file": sha + ext, "kind": "video" if ext in VIDEO else "image"}
                 save(s)
         self.send(200, {"sha": sha})
+
+    def queue_command(self):
+        try:
+            cmd = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length", 0)), 1 << 10)))["cmd"]
+            assert cmd in ("on", "off", "console")
+        except (ValueError, KeyError, TypeError, AssertionError):
+            return self.send(400, 'se espera {"cmd": "on" | "off" | "console"}')
+        with LOCK:
+            s = load()
+            s["command"] = {"id": uuid.uuid4().hex, "cmd": cmd, "at": time.time()}
+            save(s)
+        self.send(200, s["command"])
 
     def do_PUT(self):
         if not self.auth():

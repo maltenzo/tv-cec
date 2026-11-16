@@ -19,6 +19,11 @@
 <h1>Tele</h1>
 <div id="msg"></div>
 
+<h2>Tele <small>(la Pi lo ejecuta en ≤ 15 s)</small></h2>
+<button class="main" onclick="cmd('on')">Prender</button>
+<button class="main" onclick="cmd('off')">Apagar</button>
+<button onclick="cmd('console')">Video / Consola</button>
+
 <h2>Playlist <small>(se repite en loop)</small></h2>
 <ul id="playlist"></ul>
 
@@ -78,6 +83,8 @@ function render() {
 
 const savePlaylist = playlist => run(async () => { state = await api('PUT', '/state', { playlist }); render(); });
 const move = (i, d) => { const p = [...state.playlist]; [p[i], p[i + d]] = [p[i + d], p[i]]; savePlaylist(p); };
+
+const cmd = c => run(async () => { await api('POST', '/command', { cmd: c }); say('Enviado: ' + c); });
 
 $('save-sched').onclick = () => run(async () => {
   const schedule = $('sched-on').checked ? { on: $('on').value, off: $('off').value } : null;

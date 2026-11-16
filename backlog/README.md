@@ -2,10 +2,10 @@
 
 ## Idea general
 
-Una API en Railway es la fuente de verdad (videos, imágenes, listas, horarios). La Pi **consulta** la API cada minuto y aplica lo que dice: no hay puertos abiertos ni NAT que atravesar. Es el mismo enfoque pull que ya usa `tv-deploy`.
+Una API en Railway es la fuente de verdad (videos, imágenes, listas, horarios). La Pi **consulta** la API cada 15 s y aplica lo que dice: no hay puertos abiertos ni NAT que atravesar. Es el mismo enfoque pull que ya usa `tv-deploy`.
 
 - `server/` (Python stdlib, Docker, volumen en `/data`): guarda el estado y los archivos, auth con `Authorization: Bearer $API_TOKEN`.
-- `tv-sync` en la Pi (timer cada minuto): compara con el estado remoto, baja lo que falta, verifica sha256, reemplaza de forma atómica y reinicia `tv-video` solo si algo cambió.
+- `tv-sync` en la Pi (timer cada 15 s): compara con el estado remoto, baja lo que falta, verifica sha256, reemplaza de forma atómica y reinicia `tv-video` solo si algo cambió.
 - Los archivos se identifican por sha256; `state.json` en el servidor describe qué se reproduce y cuándo.
 
 Principio: cada fase es usable por sí sola y no rompe la anterior. Simplicidad primero (sin DB, sin framework, sin dependencias nuevas).
@@ -19,3 +19,4 @@ Principio: cada fase es usable por sí sola y no rompe la anterior. Simplicidad 
 | 03 | [Imágenes](03-imagenes.md) | hecho, falta probar en la Pi |
 | 04 | [Horarios de prendido/apagado](04-horarios.md) | hecho, falta probar en la Pi |
 | 05 | [UI web](05-ui-web.md) | hecho, falta probar en un navegador real |
+| 06 | [Comandos desde la UI y robustez](06-comandos-y-robustez.md) | hecho, falta probar en la Pi |

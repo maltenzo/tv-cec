@@ -36,7 +36,7 @@ class T(unittest.TestCase):
         (self.d / "pi").mkdir()
         (self.d / "bin").mkdir()
         (self.d / "tv-sync.conf").write_text(f"URL={URL}\nTOKEN={TOKEN}\nDIR={self.d}/pi\n")
-        for cmd in ("systemctl", "tv"):  # falsos: solo anotan cómo los llamaron
+        for cmd in ("systemctl", "tv", "tv-console"):  # falsos: solo anotan cómo los llamaron
             (self.d / "bin" / cmd).write_text(f'#!/bin/sh\necho "$@" >> {self.d}/{cmd}.log\n')
             (self.d / "bin" / cmd).chmod(0o755)
 
@@ -120,6 +120,56 @@ class T(unittest.TestCase):
         (self.d / "data" / "media" / f"{sha}.mp4").write_bytes(b"corrupto")
         self.assertNotEqual(self.sync(), 0)
         self.assertFalse((self.d / "pi" / "playlist.m3u").exists())  # no se publica nada a medias
+
+    def test_sin_conf_no_hace_ruido(self):
+        (self.d / "tv-sync.conf").unlink()
+        r = subprocess.run([ROOT / "tv-sync"], env={**os.environ, "TV_SYNC_CONF": str(self.d / "tv-sync.conf")}, capture_output=True)
+        self.assertEqual((r.returncode, r.stderr), (0, b""))
+
+    def test_comandos(self):
+        self.assertEqual(call("POST", "/command", {"cmd": "reboot"}), 400)
+        self.assertEqual(call("POST", "/command", b"basura"), 400)
+        self.assertEqual(call("POST", "/command", {"cmd": "on"}, token="mal"), 401)
+        call("POST", "/command", {"cmd": "on"})
+        self.sync(); self.assertEqual(self.log("tv"), ["on"])
+        self.sync(); self.assertEqual(self.log("tv"), ["on"])  # no se repite
+        call("POST", "/command", {"cmd": "off"})
+        self.sync(); self.assertEqual(self.log("tv"), ["on", "off"])
+        call("POST", "/command", {"cmd": "console"})
+        self.sync(); self.assertEqual(self.log("tv-console"), [""])
+        self.assertEqual(self.log("tv"), ["on", "off"])
+
+    def test_comando_viejo_no_se_ejecuta(self):
+        call("POST", "/command", {"cmd": "on"})
+        st = json.loads((self.d / "data" / "state.json").read_text())
+        st["command"]["at"] -= 3600  # la Pi estaba apagada una hora
+        (self.d / "data" / "state.json").write_text(json.dumps(st))
+        self.sync(); self.assertEqual(self.log("tv"), [])
+        self.sync(); self.assertEqual(self.log("tv"), [])  # y tampoco después
+
+    def test_archivo_faltante_en_disco_da_404(self):
+        sha = self.upload("a.mp4", b"x")
+        (self.d / "data" / "media" / f"{sha}.mp4").unlink()
+        self.assertEqual(call("GET", "/media/" + sha), 404)
+
+    def test_disco_lleno(self):
+        import resource
+        limit = lambda: resource.setrlimit(resource.RLIMIT_FSIZE, (100_000, 100_000))  # simula el disco lleno
+        srv = subprocess.Popen(["python3", ROOT / "server/main.py"], stderr=subprocess.DEVNULL, preexec_fn=limit,
+                               env={**os.environ, "API_TOKEN": TOKEN, "DATA_DIR": str(self.d / "small"), "PORT": "8124"})
+        self.addCleanup(srv.wait); self.addCleanup(srv.kill)
+        for _ in range(50):
+            try:
+                urllib.request.urlopen(urllib.request.Request("http://localhost:8124/state"))
+            except urllib.error.HTTPError:
+                break
+            except OSError:
+                time.sleep(0.1)
+        req = urllib.request.Request("http://localhost:8124/media?name=a.mp4", data=os.urandom(300_000), method="POST", headers={"Authorization": "Bearer " + TOKEN})
+        with self.assertRaises(urllib.error.HTTPError) as e:
+            urllib.request.urlopen(req)
+        self.assertEqual(e.exception.code, 507)
+        self.assertEqual(list((self.d / "small" / "media").iterdir()), [])  # sin .tmp huérfano
 
     def test_sin_red_no_rompe(self):
         self.srv.kill()

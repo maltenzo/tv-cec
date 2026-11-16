@@ -1,15 +1,28 @@
 #!/usr/bin/env python3
 """Corre cada minuto en la Pi: sincroniza con la API (baja lo que falta, playlist.m3u) y aplica el horario.
 Config en /etc/tv-sync.conf (o $TV_SYNC_CONF): líneas URL=... y TOKEN=...; opcional DIR=... (default: $HOME)."""
-import datetime, hashlib, json, os, pathlib, subprocess, sys, urllib.request
+import datetime, hashlib, json, os, pathlib, subprocess, sys, time, urllib.request
 
-conf = dict(l.strip().split("=", 1) for l in open(os.environ.get("TV_SYNC_CONF", "/etc/tv-sync.conf")) if "=" in l)
+CONF = os.environ.get("TV_SYNC_CONF", "/etc/tv-sync.conf")
+if not os.path.exists(CONF):
+    sys.exit(0)  # todavía sin configurar: nada que hacer (y sin ruido en el journal)
+conf = dict(l.strip().split("=", 1) for l in open(CONF) if "=" in l)
 URL, DIR = conf["URL"], pathlib.Path(conf.get("DIR") or pathlib.Path.home())
-MEDIA, M3U, CACHE, LAST = DIR / "media", DIR / "playlist.m3u", DIR / "schedule.json", DIR / "schedule.last"
+MEDIA, M3U, CACHE, LAST, CMD = DIR / "media", DIR / "playlist.m3u", DIR / "schedule.json", DIR / "schedule.last", DIR / "command.last"
 
 
 def api(path):
     return urllib.request.urlopen(urllib.request.Request(URL + path, headers={"Authorization": "Bearer " + conf["TOKEN"]}), timeout=60)
+
+
+def command(state):
+    """Órdenes desde la UI (on / off / console). Una orden se ejecuta una sola vez y solo si es reciente."""
+    c = state.get("command")
+    if not c or (CMD.exists() and CMD.read_text() == c["id"]):
+        return
+    CMD.write_text(c["id"])  # antes de ejecutar: no se repite aunque falle
+    if time.time() - c["at"] < 300:  # ponytail: asume relojes sincronizados (NTP); una orden vieja de cuando la Pi estaba apagada no se ejecuta
+        subprocess.run(["tv-console"] if c["cmd"] == "console" else ["tv", c["cmd"]])
 
 
 def sync():
@@ -21,6 +34,7 @@ def sync():
         CACHE.write_text(json.dumps(state["schedule"]))
     else:
         CACHE.unlink(missing_ok=True)
+    command(state)
     MEDIA.mkdir(exist_ok=True)
     files = []
     for sha in state["playlist"]:
