@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """API en Railway. Auth: Authorization: Bearer $API_TOKEN.
 POST /media?name=a.mp4 (cuerpo = el archivo) · GET /media/<sha> · DELETE /media/<sha>
+POST /status {"tv": "on", "video": true} (lo manda la Pi) · GET /status
 POST /command {"cmd": "on"|"off"|"console"} (la Pi lo ejecuta en su próximo ciclo)
 GET / (la UI, sin token) · GET /state · PUT /state {"playlist": [sha, ...], "schedule": {"on": "08:00", "off": "22:00"} | null}"""
 import hashlib, hmac, json, os, re, threading, time, uuid
@@ -15,6 +16,7 @@ IMAGE = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}
 SHA = re.compile(r"[0-9a-f]{64}")
 HHMM = re.compile(r"([01]\d|2[0-3]):[0-5]\d")
 PAGE = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html"), "rb").read()
+STATUS = {}  # ponytail: en memoria (se pierde al reiniciar, la Pi lo repone en 15 s)
 LOCK = threading.Lock()  # ponytail: lock global para leer-modificar-escribir state.json; sobra para un solo usuario
 
 
@@ -60,6 +62,9 @@ class H(BaseHTTPRequestHandler):
             return
         if self.path == "/state":
             return self.send(200, load())
+        if self.path == "/status":
+            st = STATUS.copy()
+            return self.send(200, {"tv": st["tv"], "video": st["video"], "age": time.time() - st["at"]} if st else None)
         sha, rec = self.sha_arg(), None
         if sha:
             rec = load()["media"].get(sha)
@@ -79,6 +84,14 @@ class H(BaseHTTPRequestHandler):
         if not self.auth():
             return
         u = urlparse(self.path)
+        if u.path == "/status":
+            try:
+                b = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length", 0)), 1 << 10)))
+                assert isinstance(b["tv"], str) and len(b["tv"]) < 20 and isinstance(b["video"], bool)
+            except (ValueError, KeyError, TypeError, AssertionError):
+                return self.send(400, 'se espera {"tv": "on", "video": true}')
+            STATUS.update(tv=b["tv"], video=b["video"], at=time.time())
+            return self.send(200, "ok")
         if u.path == "/command":
             return self.queue_command()
         if u.path != "/media":

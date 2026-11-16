@@ -20,6 +20,7 @@
 <div id="msg"></div>
 
 <h2>Tele <small>(la Pi lo ejecuta en ≤ 15 s)</small></h2>
+<p id="status">…</p>
 <button class="main" onclick="cmd('on')">Prender</button>
 <button class="main" onclick="cmd('off')">Apagar</button>
 <button onclick="cmd('console')">Video / Consola</button>
@@ -109,6 +110,18 @@ $('file').onchange = e => run(async () => {
   state = await api('GET', '/state'); render(); say('Subido');
 });
 
+async function refreshStatus() {  // en silencio: un fallo acá no debe tapar otros mensajes
+  if (!token) return;
+  try {
+    const st = await api('GET', '/status');
+    $('status').textContent = !st ? 'Todavía no reportó la Pi.'
+      : st.age > 60 ? `La Pi no responde (último aviso hace ${Math.round(st.age / 60)} min).`
+      : `Tele: ${{ on: 'prendida', standby: 'apagada (en espera)' }[st.tv] ?? 'sin datos'} · Pantalla: ${st.video ? 'video' : 'consola'} · hace ${Math.round(st.age)} s`;
+  } catch (e) { $('status').textContent = 'Sin conexión con la API.'; }
+}
+setInterval(refreshStatus, 5000);
+
 if (!token) ask();
+refreshStatus();
 run(async () => { state = await api('GET', '/state'); render(); });
 </script>

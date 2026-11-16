@@ -36,8 +36,9 @@ class T(unittest.TestCase):
         (self.d / "pi").mkdir()
         (self.d / "bin").mkdir()
         (self.d / "tv-sync.conf").write_text(f"URL={URL}\nTOKEN={TOKEN}\nDIR={self.d}/pi\n")
+        quiet = {"tv": "status", "systemctl": "is-active"}  # las consultas de estado no se anotan: solo las acciones
         for cmd in ("systemctl", "tv", "tv-console"):  # falsos: solo anotan cómo los llamaron
-            (self.d / "bin" / cmd).write_text(f'#!/bin/sh\necho "$@" >> {self.d}/{cmd}.log\n')
+            (self.d / "bin" / cmd).write_text(f'#!/bin/sh\n[ "$1" = "{quiet.get(cmd)}" ] && {{ echo on; exit 0; }}\necho "$@" >> {self.d}/{cmd}.log\n')
             (self.d / "bin" / cmd).chmod(0o755)
 
     def stop(self):
@@ -170,6 +171,16 @@ class T(unittest.TestCase):
             urllib.request.urlopen(req)
         self.assertEqual(e.exception.code, 507)
         self.assertEqual(list((self.d / "small" / "media").iterdir()), [])  # sin .tmp huérfano
+
+    def test_status(self):
+        self.assertIsNone(call("GET", "/status"))
+        self.assertEqual(call("POST", "/status", {"tv": "on"}), 400)
+        self.assertEqual(call("POST", "/status", {"tv": "on", "video": "si"}), 400)
+        self.assertEqual(call("POST", "/status", {"tv": "on", "video": True}, token="mal"), 401)
+        self.sync()  # el tv falso responde "on" y el systemctl falso "activo"
+        st = call("GET", "/status")
+        self.assertEqual((st["tv"], st["video"]), ("on", True))
+        self.assertLess(st["age"], 10)
 
     def test_sin_red_no_rompe(self):
         self.srv.kill()

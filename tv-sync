@@ -70,7 +70,22 @@ def schedule():
         LAST.write_text(want)  # si tv falla (CEC no listo) no se anota y reintenta al minuto
 
 
+def report():
+    """Le cuenta a la API cómo está la tele (la UI lo muestra)."""
+    try:
+        tv = subprocess.run(["tv", "status"], capture_output=True, text=True, timeout=20).stdout.strip() or "unknown"
+    except (OSError, subprocess.SubprocessError):
+        tv = "unknown"
+    video = subprocess.run(["systemctl", "is-active", "--quiet", "tv-video"]).returncode == 0
+    req = urllib.request.Request(URL + "/status", json.dumps({"tv": tv, "video": video}).encode(), {"Authorization": "Bearer " + conf["TOKEN"]})
+    try:
+        urllib.request.urlopen(req, timeout=10).close()
+    except OSError:
+        pass  # sin red: la próxima
+
+
 try:
     sync()
 finally:
     schedule()
+    report()
