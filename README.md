@@ -55,3 +55,19 @@ Sin TLS ni puertos abiertos: acceder desde afuera con Tailscale (`http://<nombre
 ## Web
 
 `http://<ip-pi>:8080/` → botones prender/apagar/video-consola/estado. Pide el token una vez (`sudo cat /etc/tv-api.token`) y lo guarda en el navegador. Sigue sin TLS: usar solo en LAN/Tailscale.
+
+## API en Railway (fase 1: reemplazar el video)
+
+`server/` es un servicio aparte (Railway → Root Directory `server`, variable `API_TOKEN`, volumen montado en `/data`). La Pi *consulta* la API cada minuto (`tv-sync.timer`), así que sigue sin puertos abiertos.
+
+```bash
+# subir/reemplazar el video
+curl -H "Authorization: Bearer $API_TOKEN" -T nuevo.mp4 https://<app>.up.railway.app/video
+
+# en la Pi, una vez (el próximo sync baja el video y reinicia tv-video)
+printf 'URL=https://<app>.up.railway.app\nTOKEN=<API_TOKEN>\n' | sudo tee /etc/tv-sync.conf; sudo chmod 600 /etc/tv-sync.conf
+```
+
+## Tests
+
+`python3 -m unittest discover tests` — levanta `server/main.py` en local y corre `tv-sync` contra él (con `systemctl` falso); no necesita la Pi.

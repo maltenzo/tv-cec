@@ -1,0 +1,11 @@
+#!/bin/bash
+# Baja el video de la API si cambió (sha distinto). Config en /etc/tv-sync.conf: URL=https://... TOKEN=...
+. "${TV_SYNC_CONF:-/etc/tv-sync.conf}"
+V=${VIDEO:-$HOME/video.mp4}
+auth=(-H "Authorization: Bearer $TOKEN")
+new=$(curl -fsS "${auth[@]}" "$URL/video/sha") || exit 0   # sin red o sin video todavía: nada que hacer
+[ "$new" = "$(cat "$V.sha" 2>/dev/null)" ] && exit 0
+curl -fsS "${auth[@]}" -o "$V.tmp" "$URL/video" || { rm -f "$V.tmp"; exit 1; }
+[ "$(sha256sum "$V.tmp" | cut -d' ' -f1)" = "$new" ] || { rm -f "$V.tmp"; exit 1; }
+mv "$V.tmp" "$V" && echo "$new" > "$V.sha"
+systemctl try-restart tv-video
