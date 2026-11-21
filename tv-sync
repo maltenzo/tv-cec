@@ -64,7 +64,7 @@ def sync():
     if not M3U.exists() or M3U.read_text() != m3u:
         M3U.with_suffix(".tmp").write_text(m3u)
         M3U.with_suffix(".tmp").replace(M3U)
-        subprocess.run(["systemctl", "try-restart", "tv-video"])
+        subprocess.run(["sudo", "-n", "systemctl", "try-restart", "tv-video"])
 
 
 def schedule():
