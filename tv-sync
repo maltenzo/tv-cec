@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Corre cada minuto en la Pi: sincroniza con la API (baja lo que falta, playlist.m3u) y aplica el horario.
 Config en /etc/tv-sync.conf (o $TV_SYNC_CONF): líneas URL=... y TOKEN=...; opcional DIR=... (default: $HOME)."""
-import datetime, hashlib, json, os, pathlib, subprocess, sys, time, urllib.request
+import datetime, hashlib, json, os, pathlib, socket, subprocess, sys, time, urllib.request
 
 CONF = os.environ.get("TV_SYNC_CONF", "/etc/tv-sync.conf")
 if not os.path.exists(CONF):
@@ -64,7 +64,12 @@ def sync():
     if not M3U.exists() or M3U.read_text() != m3u:
         M3U.with_suffix(".tmp").write_text(m3u)
         M3U.with_suffix(".tmp").replace(M3U)
-        subprocess.run(["sudo", "-n", "systemctl", "try-restart", "tv-video"])
+        try:  # mpv carga la lista nueva sin cerrarse: reiniciarlo corta el HDMI y la tele muestra "buscando señal"
+            with socket.socket(socket.AF_UNIX) as s:
+                s.connect(str(DIR / "mpv.sock"))
+                s.sendall(json.dumps({"command": ["loadlist", str(M3U), "replace"]}).encode() + b"\n")
+        except OSError:  # mpv parado o sin socket: try-restart no hace nada si está parado
+            subprocess.run(["sudo", "-n", "systemctl", "try-restart", "tv-video"])
 
 
 def schedule():

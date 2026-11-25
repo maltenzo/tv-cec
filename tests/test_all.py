@@ -1,5 +1,5 @@
 """python3 -m unittest discover tests — levanta el server real en local y corre tv-sync contra él (systemctl y tv falsos)."""
-import hashlib, json, os, pathlib, subprocess, tempfile, time, unittest, urllib.error, urllib.request
+import hashlib, json, os, pathlib, socket, subprocess, tempfile, time, unittest, urllib.error, urllib.request
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 PORT, TOKEN = "8123", "t"
@@ -37,8 +37,8 @@ class T(unittest.TestCase):
         (self.d / "bin").mkdir()
         (self.d / "tv-sync.conf").write_text(f"URL={URL}\nTOKEN={TOKEN}\nDIR={self.d}/pi\n")
         quiet = {"tv": "status", "systemctl": "is-active"}  # las consultas de estado no se anotan: solo las acciones
-        for cmd in ("systemctl", "tv", "tv-console"):  # falsos: solo anotan cómo los llamaron
-            (self.d / "bin" / cmd).write_text(f'#!/bin/sh\n[ "$1" = "{quiet.get(cmd)}" ] && {{ echo on; exit 0; }}\necho "$@" >> {self.d}/{cmd}.log\n')
+        for cmd in ("systemctl", "sudo", "tv", "tv-console"):  # falsos: solo anotan cómo los llamaron
+            (self.d / "bin" / cmd).write_text(f'#!/bin/sh\n[ "$1" = "{quiet.get(cmd)}" ] && {{ echo on; exit 0; }}\nprintf "%s\\n" "$*" >> {self.d}/{cmd}.log\n')
             (self.d / "bin" / cmd).chmod(0o755)
 
     def stop(self):
@@ -106,14 +106,21 @@ class T(unittest.TestCase):
         pi = self.d / "pi"
         self.assertEqual((pi / "playlist.m3u").read_text(), f"{pi}/media/{a}.mp4\n{pi}/media/{b}.jpg\n")
         self.assertEqual((pi / "media" / f"{b}.jpg").read_bytes(), b"imagen")
-        n = len(self.log("systemctl"))
+        n = len(self.log("sudo"))
         self.assertEqual(self.sync(), 0)  # sin cambios: no reinicia
-        self.assertEqual(len(self.log("systemctl")), n)
-        call("PUT", "/state", {"playlist": [b]})  # cambia: reinicia y borra lo que sobra
+        self.assertEqual(len(self.log("sudo")), n)
+        call("PUT", "/state", {"playlist": [b]})  # cambia, mpv sin socket: reinicia y borra lo que sobra
         self.assertEqual(self.sync(), 0)
-        self.assertEqual(len(self.log("systemctl")), n + 1)
+        self.assertEqual(len(self.log("sudo")), n + 1)
         self.assertEqual(sorted(p.name for p in (pi / "media").iterdir()), [f"{b}.jpg"])
-        self.assertIn("try-restart tv-video", self.log("systemctl")[-1])
+        self.assertIn("try-restart tv-video", self.log("sudo")[-1])
+        with socket.socket(socket.AF_UNIX) as mpv:  # con mpv escuchando: recarga la lista sin reiniciar
+            mpv.bind(str(pi / "mpv.sock")); mpv.listen(1)
+            call("PUT", "/state", {"playlist": [b, b]})
+            self.assertEqual(self.sync(), 0)
+            got = json.loads(mpv.accept()[0].recv(4096))
+        self.assertEqual(got, {"command": ["loadlist", str(pi / "playlist.m3u"), "replace"]})
+        self.assertEqual(len(self.log("sudo")), n + 1)
 
     def test_sync_rechaza_archivo_corrupto_y_espera_antes_de_reintentar(self):
         sha = self.upload("a.mp4", b"video")

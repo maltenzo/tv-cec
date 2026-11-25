@@ -14,7 +14,7 @@ usermod -aG video,render,audio "$U"
 
 changed=
 for u in *.service *.timer; do
-  sed "s/^User=pi/User=$U/; s#/home/pi/#/home/$U/#" "$u" > /tmp/unit.$$
+  sed "s/^User=pi/User=$U/; s#/home/pi/#/home/$U/#g" "$u" > /tmp/unit.$$
   cmp -s /tmp/unit.$$ "/etc/systemd/system/$u" || { install -m644 /tmp/unit.$$ "/etc/systemd/system/$u"; changed="$changed $u"; }
   rm -f /tmp/unit.$$
 done
