@@ -4,6 +4,9 @@ Description=Video en loop (mpv/DRM)
 [Service]
 User=pi
 SupplementaryGroups=video render audio
+# tty1 en negro y sin cursor: si mpv se cae o reinicia se ve negro, no la consola (+ = como root)
+ExecStartPre=+/bin/sh -c 'TERM=linux setterm --clear all --cursor off --blank 0 > /dev/tty1'
+ExecStopPost=+/bin/sh -c 'TERM=linux setterm --clear all --cursor off > /dev/tty1'
 ExecStart=/usr/bin/mpv --vo=gpu --gpu-context=drm --drm-connector=HDMI-A-1 --hwdec=auto --loop-playlist=inf --image-display-duration=10 --no-terminal --really-quiet --playlist=/home/pi/playlist.m3u
 Restart=always
 RestartSec=3

@@ -30,7 +30,7 @@ Si algo no anda, mirar la salida con `TV_DEBUG=1`:
 - **Physical address**: si el parseo falla, `TV_PHYS=1.0.0.0 tv on` (o el que muestre `cec-ctl -d /dev/cec0 --playback`). `f.f.f.f` = sin enlace HDMI/EDID.
 - **Estado**: se busca `pwr-state: on|standby|to-on|to-standby`; cualquier otra cosa → `unknown`.
 - **Conector DRM**: `modetest -c | grep -i hdmi` o `ls /sys/class/drm/`; si no es `HDMI-A-1` (ej. Pi 4/5 con el 2º puerto), cambiarlo en `cmdline.txt` y en `tv-video.service` (`--drm-connector`).
-- `tv status` da `unknown` si la tele está en standby profundo / ahorro de energía (no contesta CEC). El watcher lo ignora: conserva el último estado conocido, así standby → unknown → on igual reinicia el video.
+- `tv status` da `unknown` si la tele está en standby profundo / ahorro de energía (no contesta CEC).
 
 ## API
 
@@ -50,7 +50,7 @@ Sin TLS ni puertos abiertos: acceder desde afuera con Tailscale (`http://<nombre
 
 ## Consola vs video
 
-`tv-console` alterna: para `tv-video` (se ve la consola) o lo arranca. No persiste al reiniciar. Si el video tapa todo: SSH a la Pi y correrlo (o a ciegas en el teclado: login + `tv-console`).
+`tv-console` alterna: para `tv-video` y abre el login en tty1, o lo cierra y vuelve al video. Al prender la tele el video sigue donde estaba (no se reinicia). Fuera de eso tty1 queda en negro (sin login), así un reinicio de mpv no muestra la consola. Ctrl+Alt+F2 siempre da otra consola. No persiste al reiniciar. Si el video tapa todo: SSH a la Pi y correrlo (o con teclado: Ctrl+Alt+F2, login + `tv-console`).
 
 ## Web
 
