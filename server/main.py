@@ -4,7 +4,7 @@ POST /media?name=a.mp4 (cuerpo = el archivo) · GET /media/<sha> · DELETE /medi
 POST /status {"tv": "on", "video": true} (lo manda la Pi) · GET /status
 POST /command {"cmd": "on"|"off"|"console"} (la Pi lo ejecuta en su próximo ciclo)
 GET / (la UI, sin token) · GET /state · PUT /state {"playlist": [sha, ...], "schedule": {"on": "08:00", "off": "22:00"} | null}"""
-import hashlib, hmac, json, os, re, threading, time, uuid
+import gzip, hashlib, hmac, json, os, re, threading, time, uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
@@ -15,7 +15,7 @@ VIDEO = {".mp4", ".mkv", ".mov", ".webm", ".avi"}
 IMAGE = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}
 SHA = re.compile(r"[0-9a-f]{64}")
 HHMM = re.compile(r"([01]\d|2[0-3]):[0-5]\d")
-PAGE = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html"), "rb").read()
+PAGE = gzip.compress(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html"), "rb").read())  # ~750 KB -> ~190 KB: egress cuesta
 STATUS = {}  # ponytail: en memoria (se pierde al reiniciar, la Pi lo repone en 15 s)
 LOCK = threading.Lock()  # ponytail: lock global para leer-modificar-escribir state.json; sobra para un solo usuario
 
@@ -41,12 +41,14 @@ class H(BaseHTTPRequestHandler):
             self.send(401, "unauthorized")
         return ok
 
-    def send(self, code, body="", ctype="text/plain"):
+    def send(self, code, body="", ctype="text/plain", gzip=False):
         if not isinstance(body, (str, bytes)):
             body, ctype = json.dumps(body), "application/json"
         body = body.encode() if isinstance(body, str) else body
         self.send_response(code)
         self.send_header("Content-Type", ctype)
+        if gzip:
+            self.send_header("Content-Encoding", "gzip")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -57,7 +59,9 @@ class H(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/":  # la página es pública y no lleva datos; el token se pide en el navegador
-            return self.send(200, PAGE, "text/html; charset=utf-8")
+            if "gzip" in self.headers.get("Accept-Encoding", ""):
+                return self.send(200, PAGE, "text/html; charset=utf-8", gzip=True)
+            return self.send(200, gzip.decompress(PAGE), "text/html; charset=utf-8")
         if not self.auth():
             return
         if self.path == "/state":
