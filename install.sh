@@ -11,6 +11,11 @@ grep -q 'video=HDMI-A-1' /boot/firmware/cmdline.txt || sed -i '1s|$| video=HDMI-
 grep -q 'loglevel=3' /boot/firmware/cmdline.txt || sed -i '1s|$| quiet loglevel=3|' /boot/firmware/cmdline.txt  # sin mensajes del kernel encima del negro
 systemctl disable -q getty@tty1  # sin login en tty1; tv-console lo arranca a pedido
 usermod -aG video,render,audio "$U"
+# logs en la SD (Raspberry Pi OS los deja solo en RAM) con tope, para no gastar ni llenar la tarjeta
+mkdir -p /etc/systemd/journald.conf.d
+printf '[Journal]\nStorage=persistent\nSystemMaxUse=50M\n' > /tmp/j.$$
+cmp -s /tmp/j.$$ /etc/systemd/journald.conf.d/99-tv.conf || { install -m644 /tmp/j.$$ /etc/systemd/journald.conf.d/99-tv.conf; systemctl restart systemd-journald; }
+rm -f /tmp/j.$$
 
 changed=
 for u in *.service *.timer; do
